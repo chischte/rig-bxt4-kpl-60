@@ -1,0 +1,15 @@
+[submodule "lib/cylinder-library"]
+	path = lib/cylinder-library
+	url = https://github.com/chischte/cylinder-library
+[submodule "lib/debounce-library"]
+	path = lib/debounce-library
+	url = https://github.com/chischte/debounce-library
+[submodule "lib/eeprom-counter-library"]
+	path = lib/eeprom-counter-library
+	url = https://github.com/chischte/eeprom-counter-library
+[submodule "lib/insomnia-delay-library"]
+	path = lib/insomnia-delay-library
+	url = https://github.com/chischte/insomnia-delay-library
+[submodule "lib/ArduinoSTL"]
+	path = lib/ArduinoSTL
+	url = https://github.com/mike-matera/ArduinoSTL
