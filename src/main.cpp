@@ -2,16 +2,15 @@
 /*
  * *****************************************************************************
  * *****************************************************************************
- * BXT4_KPL
+ * BXT4-KPL-60
  * *****************************************************************************
  * Program to control a test rig
  * *****************************************************************************
  * Michael Wettstein
- * Dezember 2022, Zürich
+ * Juli 2023, Zürich
  * *****************************************************************************
  * *****************************************************************************
  */
-
 
 #include <ArduinoSTL.h> //       https://github.com/mike-matera/ArduinoSTL
 #include <Controllino.h> //      PIO Controllino Library
@@ -31,8 +30,6 @@
 //                                                                          |
 bool is_in_display_debug_mode = false; // MUST BE FALSE IN PRODUCTION !!!<--|
 //                                                                          |
-int max_tool_force = 2500; // [N] / 260er->2500 / 450er->4500 --------------|
-//                                                                          |
 // !!!!!!!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!!!--------------|
 // !!!!!!!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!!!--------------|
 // !!!!!!!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!! !!!!!!!!!!!!!!!!!!--------------|
@@ -40,30 +37,25 @@ int max_tool_force = 2500; // [N] / 260er->2500 / 450er->4500 --------------|
 // PRE-SETUP SECTION / PIN LAYOUT **********************************************
 
 // INPUT PINS / SENSORS:
-
-const byte DRUCKSENSOR = CONTROLLINO_A7; // 0-10V = 0-12barg
-Debounce bandsensor_oben(CONTROLLINO_A0);
-Debounce bandsensor_unten(CONTROLLINO_A1);
+Debounce taster_endposition(CONTROLLINO_A0);
 Debounce taster_startposition(CONTROLLINO_A2);
-Debounce taster_endposition(CONTROLLINO_A3);
+Debounce bandsensoren(CONTROLLINO_A1);
 
 // OUTPUT PINS / VALVES / MOTORS / RELAYS:
-Cylinder zyl_hauptluft(CONTROLLINO_D7);
-Cylinder zyl_800_abluft(CONTROLLINO_D1);
-Cylinder zyl_800_zuluft(CONTROLLINO_D0);
-Cylinder zyl_startklemme(CONTROLLINO_D2);
-Cylinder zyl_wippenhebel(CONTROLLINO_D5);
-Cylinder zyl_spanntaste(CONTROLLINO_D3);
-Cylinder zyl_schweisstaste(CONTROLLINO_D4);
-Cylinder zyl_tool_niederhalter(CONTROLLINO_D9);
-Cylinder zyl_block_messer(CONTROLLINO_D6);
-Cylinder zyl_block_klemmrad(CONTROLLINO_D8);
+Cylinder zyl_tool_niederhalter(CONTROLLINO_D7);
+Cylinder zyl_60er_zuluft(CONTROLLINO_D3);
+Cylinder zyl_startklemme(CONTROLLINO_D4);
+Cylinder zyl_spanntaste(CONTROLLINO_D6);
+Cylinder zyl_schweisstaste(CONTROLLINO_D5);
+Cylinder zyl_wippenhebel(CONTROLLINO_D8);
+Cylinder zyl_block_klemmrad(CONTROLLINO_D10);
 Cylinder zyl_block_foerdermotor(CONTROLLINO_R5);
-Cylinder zyl_singal_green(CONTROLLINO_D10);
-Cylinder zyl_singal_red(CONTROLLINO_D11);
+Cylinder zyl_block_messer(CONTROLLINO_D9);
+
+// Cylinder zyl_singal_green(CONTROLLINO_D10);
+// Cylinder zyl_singal_red(CONTROLLINO_D11);
 
 Insomnia delay_cycle_step;
-Insomnia delay_force_update;
 Insomnia delay_tacho_update;
 Insomnia delay_minimum_filltime;
 Insomnia delay_minimum_waittime;
@@ -129,29 +121,11 @@ void reset_flag_of_current_step() { main_cycle_steps[state_controller.get_curren
 
 // PNEUMATIC SPTING (800mm CYLINDER) -------------------------------------------
 
-void pneumatic_spring_vent() {
-  zyl_800_zuluft.set(0);
-  zyl_800_abluft.set(0);
-}
-void pneumatic_spring_move() {
-  zyl_800_zuluft.set(1);
-  zyl_800_abluft.set(0); // dont build up pressure
-}
-void pneumatic_spring_block() {
-  zyl_800_zuluft.set(0);
-  zyl_800_abluft.set(1);
-}
-
-void pneumatic_spring_build_pressure() {
-  zyl_800_zuluft.set(1);
-  zyl_800_abluft.set(1);
-}
-
 // -----------------------------------------------------------------------------
 
 void reset_cylinders() {
 
-  zyl_hauptluft.set(1);
+  // zyl_hauptluft.set(1);
   zyl_wippenhebel.set(0);
   zyl_spanntaste.set(0);
   zyl_schweisstaste.set(0);
@@ -159,7 +133,6 @@ void reset_cylinders() {
   zyl_block_messer.set(0);
   zyl_block_foerdermotor.set(0);
   zyl_startklemme.set(0);
-  pneumatic_spring_vent();
 }
 
 void reset_state_controller() {
@@ -181,7 +154,7 @@ void reset_machine() {
 }
 
 void stop_machine() {
-  zyl_hauptluft.set(0);
+  // zyl_hauptluft.set(0);
   state_controller.set_step_mode();
   state_controller.set_machine_stop();
   reset_cylinders();
@@ -204,7 +177,7 @@ byte current_tacho_pos;
 // prevent screen flickering.
 
 bool nex_state_zyl_hauptluft;
-bool nex_state_zyl_800_zuluft;
+bool nex_state_zyl_60er_zuluft;
 bool nex_state_zyl_800_abluft;
 bool nex_state_zyl_startklemme;
 bool nex_state_zyl_wippenhebel;
@@ -241,7 +214,7 @@ NexDSButton nex_button_play_pause = NexDSButton(1, 22, "play");
 NexDSButton nex_button_mode = NexDSButton(1, 4, "bt1");
 
 // PAGE 1 - RIGHT SIDE
-NexDSButton nex_zyl_800_zuluft = NexDSButton(1, 13, "bt5");
+NexDSButton nex_zyl_60er_zuluft = NexDSButton(1, 13, "bt5");
 NexDSButton nex_zyl_800_abluft = NexDSButton(1, 12, "bt4");
 NexDSButton nex_zyl_startklemme = NexDSButton(1, 11, "bt3");
 NexButton nex_zyl_wippenhebel = NexButton(1, 10, "b5");
@@ -278,7 +251,7 @@ NexTouch *nex_listen_list[] = {
     &nex_page_1, &nex_button_stepback, &nex_button_stepnxt, &nex_button_reset_machine, &nex_button_play_pause,
     &nex_button_mode,
     // PAGE 1 - RIGHT SIDE:
-    &nex_zyl_foerdern, &nex_zyl_messer, &nex_zyl_startklemme, &nex_zyl_800_zuluft, &nex_zyl_800_abluft,
+    &nex_zyl_foerdern, &nex_zyl_messer, &nex_zyl_startklemme, &nex_zyl_60er_zuluft, &nex_zyl_800_abluft,
     &nex_zyl_wippenhebel, &nex_zyl_spanntaste, &nex_zyl_schweisstaste, &nex_zyl_hauptluft,
     // PAGE 2:
     &nex_page_2, &nex_button_1_left, &nex_button_1_right, &nex_button_2_left, &nex_button_2_right, &nex_button_3_left,
@@ -300,7 +273,7 @@ void nex_page_1_push_callback(void *ptr) {
   nex_state_cycle_step = -1;
   nex_state_step_mode = 1;
   nex_state_error_message = "INFO";
-  nex_state_zyl_800_zuluft = 0;
+  nex_state_zyl_60er_zuluft = 0;
   nex_state_zyl_800_abluft = 1; // INVERTED VALVE LOGIC
   nex_state_zyl_startklemme = 0;
   nex_state_zyl_wippenhebel = 0;
@@ -365,16 +338,16 @@ void nex_button_reset_machine_push_callback(void *ptr) { reset_machine(); }
 
 // TOUCH EVENT FUNCTIONS PAGE 1 - RIGHT SIDE -----------------------------------
 
-void nex_zyl_800_zuluft_push_callback(void *ptr) {
-  zyl_800_zuluft.set(1);
-  nex_state_zyl_800_zuluft = !nex_state_zyl_800_zuluft;
+void nex_zyl_60er_zuluft_push_callback(void *ptr) {
+  zyl_60er_zuluft.set(1);
+  nex_state_zyl_60er_zuluft = !nex_state_zyl_60er_zuluft;
 }
-void nex_zyl_800_zuluft_pop_callback(void *ptr) { //
-  zyl_800_zuluft.set(0);
+void nex_zyl_60er_zuluft_pop_callback(void *ptr) { //
+  zyl_60er_zuluft.set(0);
 }
 
 void nex_zyl_800_abluft_push_callback(void *ptr) {
-  zyl_800_abluft.toggle();
+  // zyl_800_abluft.toggle();
   nex_state_zyl_800_abluft = !nex_state_zyl_800_abluft;
 }
 
@@ -415,7 +388,7 @@ void nex_zyl_foerdern_pop_callback(void *ptr) {
 }
 
 void nex_zyl_hauptluft_push_callback(void *ptr) {
-  zyl_hauptluft.toggle();
+  // zyl_hauptluft.toggle();
   nex_state_zyl_hauptluft = !nex_state_zyl_hauptluft;
 }
 
@@ -493,8 +466,8 @@ void nextion_setup() {
   nex_button_play_pause.attachPop(nex_button_play_pause_pop_callback);
   // PAGE 1 - RIGHT SIDE:
   nex_zyl_startklemme.attachPush(nex_zyl_startklemme_push_callback);
-  nex_zyl_800_zuluft.attachPush(nex_zyl_800_zuluft_push_callback);
-  nex_zyl_800_zuluft.attachPop(nex_zyl_800_zuluft_pop_callback);
+  nex_zyl_60er_zuluft.attachPush(nex_zyl_60er_zuluft_push_callback);
+  nex_zyl_60er_zuluft.attachPop(nex_zyl_60er_zuluft_pop_callback);
   nex_zyl_800_abluft.attachPush(nex_zyl_800_abluft_push_callback);
   nex_zyl_startklemme.attachPush(nex_zyl_startklemme_push_callback);
   nex_zyl_wippenhebel.attachPush(nex_zyl_wippenhebel_push_callback);
@@ -660,33 +633,6 @@ void run_spinner() {
   }
 }
 
-void update_tacho_picture() {
-  if (nex_current_tacho_pos != current_tacho_pos) {
-    String picture = String(tacho_pics_array[current_tacho_pos]);
-    display_pic_in_field(picture, "force");
-    nex_current_tacho_pos = current_tacho_pos;
-  }
-}
-
-int get_tacho_pos_from_pressure() {
-
-  int number_of_tacho_pics = sizeof(tacho_pics_array) / sizeof(int);
-  int max_tacho_pic_number = number_of_tacho_pics - 1;
-
-  float force_fraction = float(force_int) / max_tool_force;
-  int array_position = int(round(force_fraction * float(max_tacho_pic_number)));
-
-  if (array_position >= max_tacho_pic_number) {
-    array_position = max_tacho_pic_number;
-  }
-
-  return array_position;
-}
-
-void run_tacho() { //
-  current_tacho_pos = get_tacho_pos_from_pressure();
-};
-
 String get_main_cycle_display_string() {
   int current_step = state_controller.get_current_step();
   String display_text_cycle_name = main_cycle_steps[current_step]->get_display_text();
@@ -752,8 +698,6 @@ void display_loop_page_1_left_side() {
   update_spinner_picture();
 
   if (delay_tacho_update.delay_time_is_up(200)) {
-    run_tacho();
-    update_tacho_picture();
     update_force_display();
   }
 
@@ -771,17 +715,17 @@ void display_loop_page_1_left_side() {
 // DISPLAY LOOP PAGE 1 RIGHT SIDE: ---------------------------------------------
 
 void update_button_zuluft_800() {
-  if (zyl_800_zuluft.get_state() != nex_state_zyl_800_zuluft) {
+  if (zyl_60er_zuluft.get_state() != nex_state_zyl_60er_zuluft) {
     toggle_ds_switch("bt5");
-    nex_state_zyl_800_zuluft = !nex_state_zyl_800_zuluft;
+    nex_state_zyl_60er_zuluft = !nex_state_zyl_60er_zuluft;
   }
 }
 
 void update_button_abluft_800() {
-  if (zyl_800_abluft.get_state() != nex_state_zyl_800_abluft) {
-    toggle_ds_switch("bt4");
-    nex_state_zyl_800_abluft = !nex_state_zyl_800_abluft;
-  }
+  // if (zyl_800_abluft.get_state() != nex_state_zyl_800_abluft) {
+  //   toggle_ds_switch("bt4");
+  //   nex_state_zyl_800_abluft = !nex_state_zyl_800_abluft;
+  // }
 }
 
 void update_button_klemmblock() {
@@ -832,10 +776,10 @@ void update_button_schweissen() {
 }
 
 void update_button_hauptluft() {
-  if (zyl_hauptluft.get_state() != nex_state_zyl_hauptluft) {
-    toggle_ds_switch("bt6");
-    nex_state_zyl_hauptluft = zyl_hauptluft.get_state();
-  }
+  // if (zyl_hauptluft.get_state() != nex_state_zyl_hauptluft) {
+  //   toggle_ds_switch("bt6");
+  //   nex_state_zyl_hauptluft = zyl_hauptluft.get_state();
+  // }
 }
 
 void display_loop_page_1_right_side() {
@@ -887,25 +831,12 @@ void update_startfuelldruck() {
     nex_state_startfuelldruck = eeprom_counter.get_value(startfuelldruck);
   }
 }
-void update_pressure_display() {
-  Serial2.print("t10.txt=");
-  Serial2.print("\"");
-  Serial2.print(pressure_float, 1);
-  Serial2.print(" bar");
-  Serial2.print("\"");
-  send_to_nextion();
-  nex_state_federdruck = pressure_float;
-}
 
 void display_loop_page_2() {
   update_number_of_cycles();
   update_cooldown_time();
   update_strap_feed_time();
   update_startfuelldruck();
-
-  if (delay_force_update.delay_time_is_up(200)) {
-    update_pressure_display();
-  }
 }
 
 // DIPLAY LOOP PAGE 3: ---------------------------------------------------------
@@ -967,91 +898,6 @@ void nextion_loop() {
 } // END OF NEXTION MAIN LOOP
 
 // PROCESS PRESSURE SENSOR -----------------------------------------------------
-
-float get_pressure_from_sensor() {
-  // DRUCKSENSOR 0-10V => 0-12bar
-  // CONTROLLINO ANALOG INPUT VALUE 0-1023, 30mV per digit (controlino.biz)
-  // 10V   => analogRead 333.3 (10V/30mV)
-  // 12bar => anlaogRead 333.3
-  // 1bar  => analogRead 27.778
-  return analogRead(DRUCKSENSOR) / 27.778; //[bar]
-}
-
-float smoothe_measurement(float pressure_float) {
-  static float pressure_float_smoothed;
-  pressure_float_smoothed = ((pressure_float_smoothed * 4 + pressure_float) / 5);
-  return pressure_float_smoothed;
-}
-
-float calm_measurement(float pressure_float) {
-  // To prevent flickering, the pressure value will only be updated
-  // if there's a higher or lower value five times in a row.
-  // A positive calmcounter indicates rising pressure.
-  // A negative calmcounter indicates dropping pressure.
-
-  static float calmcounter;
-  static float pressure_sum;
-  static float pressure_calmed;
-  static float prev_pressure_calmed;
-
-  // Pressure seems to rise:
-  if (pressure_float > pressure_calmed) {
-    if (calmcounter >= 0) {
-      calmcounter++;
-      pressure_sum += pressure_float;
-    }
-    if (calmcounter < 0) // Pressure seemed to drop last time, reset calmcounter
-    {
-      calmcounter = 0;
-      pressure_sum = 0;
-    }
-  }
-  // Pressure seems to fall:
-  if (pressure_float < pressure_calmed) {
-    if (calmcounter <= 0) {
-      calmcounter--;
-      pressure_sum += pressure_float;
-    }
-    if (calmcounter > 0) // Pressure seemed to rise last time, reset calmcounter
-    {
-      calmcounter = 0;
-      pressure_sum = 0;
-    }
-  }
-
-  if (fabs(calmcounter) >= 5) //
-  {
-    static float min_difference = 0.00; // [bar]
-    // Update value only if there is a significant difference to the previous
-    // value:
-    if (fabs(pressure_sum / fabs(calmcounter) - prev_pressure_calmed) > min_difference) {
-      pressure_calmed = pressure_sum / fabs(calmcounter);
-      prev_pressure_calmed = pressure_calmed;
-    }
-    calmcounter = 0;
-    pressure_sum = 0;
-  }
-  return pressure_calmed;
-}
-
-int convert_pressure_to_force(float pressure) {
-
-  // Calculate force:
-  int force = pressure * 1472.6; // 1bar  => 1472.6N (Dauertest BXT 3-32 Zylinderkraft.xlsx)
-
-  // Set last digit zero:
-  force = force / 10;
-  force = force * 10;
-
-  return force;
-}
-
-void read_and_process_pressure() {
-  pressure_float = get_pressure_from_sensor(); //[bar]
-  pressure_float = smoothe_measurement(pressure_float); //[bar]
-  pressure_float = calm_measurement(pressure_float);
-  force_int = convert_pressure_to_force(pressure_float); // [N]
-}
 
 // CREATE CYCLE STEP CLASSES ***************************************************
 // -----------------------------------------------------------------------------
@@ -1134,50 +980,10 @@ class Festklemmen : public Cycle_step {
   };
 };
 // -----------------------------------------------------------------------------
-class Startdruck : public Cycle_step {
-  String get_display_text() { return "STARTDRUCK"; }
-  byte is_full_counter = 0;
-  int minimum_inflation = 60; // [N]
-
-  void do_initial_stuff() {
-    zyl_block_klemmrad.set(0);
-    delay_cycle_step.set_unstarted();
-    delay_minimum_filltime.set_unstarted();
-    delay_minimum_waittime.set_unstarted();
-    is_full_counter = 0;
-  };
-
-  void do_loop_stuff() {
-
-    // Build pressure after minmum wait time
-    if (force_int + minimum_inflation <= eeprom_counter.get_value(startfuelldruck)) {
-      if (delay_minimum_waittime.delay_time_is_up(250)) {
-        pneumatic_spring_build_pressure();
-        delay_minimum_filltime.reset_time();
-        is_full_counter = 0;
-      }
-    }
-    // Stop building pressure after minmum filltime
-    else {
-      if (delay_minimum_filltime.delay_time_is_up(90)) {
-        pneumatic_spring_block();
-        delay_minimum_waittime.reset_time();
-        is_full_counter++;
-      }
-    }
-
-    if (is_full_counter >= 14) {
-      pneumatic_spring_block();
-      set_loop_completed();
-    };
-  };
-};
-// -----------------------------------------------------------------------------
 class Spannen : public Cycle_step {
   String get_display_text() { return "SPANNEN"; }
 
   void do_initial_stuff() {
-    pneumatic_spring_block();
     zyl_spanntaste.set(1); // Spanntaste betätigen
     zyl_block_klemmrad.set(0);
     delay_cycle_step.set_unstarted();
@@ -1211,7 +1017,6 @@ class Schweissen : public Cycle_step {
 
   void do_initial_stuff() {
     zyl_spanntaste.set(0);
-    pneumatic_spring_vent();
   };
 
   void do_loop_stuff() {
@@ -1230,7 +1035,6 @@ class Abkuehlen : public Cycle_step {
   void do_initial_stuff() {
     delay_cycle_step.set_unstarted();
     zyl_block_klemmrad.set(1);
-    pneumatic_spring_vent();
   };
   void do_loop_stuff() {
     if (pressure_float < 0.1) // warten bis der Druck abgebaut ist
@@ -1275,7 +1079,7 @@ class Zurueckfahren : public Cycle_step {
 
   void do_initial_stuff() {
     zyl_startklemme.set(0);
-    pneumatic_spring_move();
+    zyl_60er_zuluft.set(1);
     delay_cycle_step.set_unstarted();
   };
   void do_loop_stuff() {
@@ -1285,15 +1089,10 @@ class Zurueckfahren : public Cycle_step {
       set_loop_completed();
     };
     if (taster_startposition.get_raw_button_state()) {
-      pneumatic_spring_vent();
-      if (pressure_float < 0.1) // warten bis der Druck abgebaut ist
-      {
-        if (delay_cycle_step.delay_time_is_up(50)) {
-          eeprom_counter.count_one_up(shorttime_counter);
-          eeprom_counter.count_one_up(longtime_counter);
-          set_loop_completed();
-        }
-      }
+      zyl_60er_zuluft.set(0);
+      eeprom_counter.count_one_up(shorttime_counter);
+      eeprom_counter.count_one_up(longtime_counter);
+      set_loop_completed();
     }
   };
 };
@@ -1337,19 +1136,16 @@ void setup() {
 
   nextion_setup();
 
-  pinMode(DRUCKSENSOR, INPUT);
-
   delay(2000);
 
   //------------------------------------------------
   // PUSH THE CYCLE STEPS INTO THE VECTOR CONTAINER:
   // PUSH SEQUENCE = CYCLE SEQUENCE !
   main_cycle_steps.push_back(new Aufwecken);
-  main_cycle_steps.push_back(new Vorschieben); //--------------------------
+  main_cycle_steps.push_back(new Vorschieben); 
   main_cycle_steps.push_back(new Schneiden);
-  main_cycle_steps.push_back(new Stirzel); ///------------------------
+  main_cycle_steps.push_back(new Stirzel); 
   main_cycle_steps.push_back(new Festklemmen);
-  main_cycle_steps.push_back(new Startdruck);
   main_cycle_steps.push_back(new Spannen);
   main_cycle_steps.push_back(new Pause);
   main_cycle_steps.push_back(new Schweissen);
@@ -1365,7 +1161,7 @@ void setup() {
 
   state_controller.set_step_mode();
 
-  zyl_hauptluft.set(0); // Hauptluftventil nicht öffnen
+  // zyl_hauptluft.set(0); // Hauptluftventil nicht öffnen
 
   zyl_tool_niederhalter.set(1);
 
@@ -1421,7 +1217,7 @@ void monitor_strap_detectors() {
   if (is_in_display_debug_mode) {
     return;
   }
-  if (!bandsensor_oben.get_raw_button_state() || !bandsensor_unten.get_raw_button_state()) {
+  if (bandsensoren.get_raw_button_state()) {
     state_controller.set_machine_stop();
     state_controller.set_error_mode();
     error_message = "KEIN BAND";
@@ -1432,7 +1228,6 @@ void monitor_strap_detectors() {
     zyl_block_messer.set(0);
     zyl_block_foerdermotor.set(0);
     zyl_startklemme.set(0);
-    zyl_hauptluft.set(0);
   }
 }
 
@@ -1487,9 +1282,6 @@ void loop() {
   // UPDATE DISPLAY:
   nextion_loop();
 
-  // MONITOR PRESSURE:
-  read_and_process_pressure();
-
   // CHECK IF STRAP IS AVAILABLE:
   monitor_strap_detectors();
 
@@ -1497,7 +1289,7 @@ void loop() {
   monitor_timeout();
 
   // CONTROL SIGNAL LIGHT:
-  zyl_singal_red.set(state_controller.machine_is_running());
+  // zyl_singal_red.set(state_controller.machine_is_running());
 
   // RUN STEP MODE:
   if (state_controller.is_in_step_mode()) {
