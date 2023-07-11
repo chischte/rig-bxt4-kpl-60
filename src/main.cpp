@@ -52,7 +52,7 @@ Cylinder zyl_block_klemmrad(CONTROLLINO_D10);
 Cylinder zyl_block_foerdermotor(CONTROLLINO_R5);
 Cylinder zyl_block_messer(CONTROLLINO_D9);
 
-// Cylinder zyl_singal_green(CONTROLLINO_D10);
+Cylinder zyl_notauslicht(CONTROLLINO_R1);
 // Cylinder zyl_singal_red(CONTROLLINO_D11);
 
 Insomnia delay_cycle_step;
@@ -178,7 +178,7 @@ byte current_tacho_pos;
 
 bool nex_state_zyl_hauptluft;
 bool nex_state_zyl_60er_zuluft;
-bool nex_state_zyl_800_abluft;
+bool nex_state_zyl_niederhalter;
 bool nex_state_zyl_startklemme;
 bool nex_state_zyl_wippenhebel;
 bool nex_state_zyl_spanntaste;
@@ -215,7 +215,7 @@ NexDSButton nex_button_mode = NexDSButton(1, 4, "bt1");
 
 // PAGE 1 - RIGHT SIDE
 NexDSButton nex_zyl_60er_zuluft = NexDSButton(1, 13, "bt5");
-NexDSButton nex_zyl_800_abluft = NexDSButton(1, 12, "bt4");
+NexDSButton nex_zyl_niederhalter = NexDSButton(1, 12, "bt4");
 NexDSButton nex_zyl_startklemme = NexDSButton(1, 11, "bt3");
 NexButton nex_zyl_wippenhebel = NexButton(1, 10, "b5");
 NexButton nex_zyl_spanntaste = NexButton(1, 9, "b4");
@@ -251,7 +251,7 @@ NexTouch *nex_listen_list[] = {
     &nex_page_1, &nex_button_stepback, &nex_button_stepnxt, &nex_button_reset_machine, &nex_button_play_pause,
     &nex_button_mode,
     // PAGE 1 - RIGHT SIDE:
-    &nex_zyl_foerdern, &nex_zyl_messer, &nex_zyl_startklemme, &nex_zyl_60er_zuluft, &nex_zyl_800_abluft,
+    &nex_zyl_foerdern, &nex_zyl_messer, &nex_zyl_startklemme, &nex_zyl_60er_zuluft, &nex_zyl_niederhalter,
     &nex_zyl_wippenhebel, &nex_zyl_spanntaste, &nex_zyl_schweisstaste, &nex_zyl_hauptluft,
     // PAGE 2:
     &nex_page_2, &nex_button_1_left, &nex_button_1_right, &nex_button_2_left, &nex_button_2_right, &nex_button_3_left,
@@ -274,7 +274,7 @@ void nex_page_1_push_callback(void *ptr) {
   nex_state_step_mode = 1;
   nex_state_error_message = "INFO";
   nex_state_zyl_60er_zuluft = 0;
-  nex_state_zyl_800_abluft = 1; // INVERTED VALVE LOGIC
+  nex_state_zyl_niederhalter = 1; // INVERTED VALVE LOGIC
   nex_state_zyl_startklemme = 0;
   nex_state_zyl_wippenhebel = 0;
   nex_state_zyl_spanntaste = 0;
@@ -346,9 +346,9 @@ void nex_zyl_60er_zuluft_pop_callback(void *ptr) { //
   zyl_60er_zuluft.set(0);
 }
 
-void nex_zyl_800_abluft_push_callback(void *ptr) {
-  // zyl_800_abluft.toggle();
-  nex_state_zyl_800_abluft = !nex_state_zyl_800_abluft;
+void nex_zyl_niederhalter_push_callback(void *ptr) {
+  zyl_tool_niederhalter.toggle();
+  nex_state_zyl_niederhalter = !nex_state_zyl_niederhalter;
 }
 
 void nex_zyl_startklemme_push_callback(void *ptr) {
@@ -468,7 +468,7 @@ void nextion_setup() {
   nex_zyl_startklemme.attachPush(nex_zyl_startklemme_push_callback);
   nex_zyl_60er_zuluft.attachPush(nex_zyl_60er_zuluft_push_callback);
   nex_zyl_60er_zuluft.attachPop(nex_zyl_60er_zuluft_pop_callback);
-  nex_zyl_800_abluft.attachPush(nex_zyl_800_abluft_push_callback);
+  nex_zyl_niederhalter.attachPush(nex_zyl_niederhalter_push_callback);
   nex_zyl_startklemme.attachPush(nex_zyl_startklemme_push_callback);
   nex_zyl_wippenhebel.attachPush(nex_zyl_wippenhebel_push_callback);
   nex_zyl_wippenhebel.attachPop(nex_zyl_wippenhebel_pop_callback);
@@ -721,11 +721,11 @@ void update_button_zuluft_800() {
   }
 }
 
-void update_button_abluft_800() {
-  // if (zyl_800_abluft.get_state() != nex_state_zyl_800_abluft) {
-  //   toggle_ds_switch("bt4");
-  //   nex_state_zyl_800_abluft = !nex_state_zyl_800_abluft;
-  // }
+void update_button_niederhalter() {
+  if (zyl_tool_niederhalter.get_state() != nex_state_zyl_niederhalter) {
+    toggle_ds_switch("bt4");
+    nex_state_zyl_niederhalter = !nex_state_zyl_niederhalter;
+  }
 }
 
 void update_button_klemmblock() {
@@ -784,7 +784,7 @@ void update_button_hauptluft() {
 
 void display_loop_page_1_right_side() {
   update_button_zuluft_800();
-  update_button_abluft_800();
+  update_button_niederhalter();
   update_button_klemmblock();
   update_button_wippenhebel();
   update_button_spanntaste();
@@ -1015,9 +1015,7 @@ class Pause : public Cycle_step {
 class Schweissen : public Cycle_step {
   String get_display_text() { return "SCHWEISSEN"; }
 
-  void do_initial_stuff() {
-    zyl_spanntaste.set(0);
-  };
+  void do_initial_stuff() { zyl_spanntaste.set(0); };
 
   void do_loop_stuff() {
     zyl_schweisstaste.stroke(800, 5500); // SCHWEISSSTART BIS ABKUEHLEN MAX. CA. 4s
@@ -1130,6 +1128,8 @@ class Cooldown : public Cycle_step {
 // SETUP LOOP ------------------------------------------------------------------
 
 void setup() {
+  zyl_notauslicht.set(1);
+  
   eeprom_counter.setup(eeprom_min_address, eeprom_max_address, number_of_eeprom_values);
 
   Serial.begin(115200);
@@ -1142,9 +1142,9 @@ void setup() {
   // PUSH THE CYCLE STEPS INTO THE VECTOR CONTAINER:
   // PUSH SEQUENCE = CYCLE SEQUENCE !
   main_cycle_steps.push_back(new Aufwecken);
-  main_cycle_steps.push_back(new Vorschieben); 
+  main_cycle_steps.push_back(new Vorschieben);
   main_cycle_steps.push_back(new Schneiden);
-  main_cycle_steps.push_back(new Stirzel); 
+  main_cycle_steps.push_back(new Stirzel);
   main_cycle_steps.push_back(new Festklemmen);
   main_cycle_steps.push_back(new Spannen);
   main_cycle_steps.push_back(new Pause);
