@@ -1129,7 +1129,7 @@ class Cooldown : public Cycle_step {
 
 void setup() {
   zyl_notauslicht.set(1);
-  
+
   eeprom_counter.setup(eeprom_min_address, eeprom_max_address, number_of_eeprom_values);
 
   Serial.begin(115200);
@@ -1137,6 +1137,8 @@ void setup() {
   nextion_setup();
 
   delay(2000);
+
+  // eeprom_counter.set_value(longtime_counter, 8000);
 
   //------------------------------------------------
   // PUSH THE CYCLE STEPS INTO THE VECTOR CONTAINER:
@@ -1163,7 +1165,7 @@ void setup() {
 
   // zyl_hauptluft.set(0); // Hauptluftventil nicht öffnen
 
-  zyl_tool_niederhalter.set(1);
+  zyl_tool_niederhalter.set(0);
 
   reset_flag_of_current_step();
 
