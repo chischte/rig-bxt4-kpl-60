@@ -939,11 +939,14 @@ class Vorschieben : public Cycle_step {
 class Schneiden : public Cycle_step {
   String get_display_text() { return "SCHNEIDEN"; }
 
-  void do_initial_stuff(){};
+  void do_initial_stuff(){
+    zyl_block_klemmrad.set(0);
+  };
   void do_loop_stuff() {
     zyl_block_messer.stroke(1300, 500);
 
     if (zyl_block_messer.stroke_completed()) {
+      zyl_block_klemmrad.set(1);
       set_loop_completed();
     }
   };
