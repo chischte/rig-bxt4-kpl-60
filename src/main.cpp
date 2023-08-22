@@ -1141,7 +1141,7 @@ void setup() {
 
   delay(2000);
 
-  // eeprom_counter.set_value(longtime_counter, 8000);
+  // eeprom_counter.set_value(longtime_counter, 16725);
 
   //------------------------------------------------
   // PUSH THE CYCLE STEPS INTO THE VECTOR CONTAINER:
