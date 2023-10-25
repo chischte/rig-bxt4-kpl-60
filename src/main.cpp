@@ -63,6 +63,7 @@ Insomnia delay_minimum_waittime;
 Insomnia spinner_step_timeout(500);
 Insomnia timeout_machine_stopped(15000);
 Insomnia timeout_reset_button(5000); // pushtime to reset counter
+Insomnia timeout_trigglermode(5000); // pushtime to start trigglermode
 Insomnia timeout_long_pause;
 
 State_controller state_controller;
@@ -73,6 +74,9 @@ State_controller state_controller;
 // int   (-32,768 to 32,767) / unsigned int: 0 to 65,535
 // long  (-2,147,483,648 to 2,147,483,647)
 // float (6-7 Digits)
+bool flag_run_trigglermode = false;
+unsigned long number_of_triggles = 1000;
+static unsigned long trigglercountdown = number_of_triggles;
 
 byte cycle_step = 0;
 byte timeout_count = 0;
@@ -142,6 +146,8 @@ void reset_state_controller() {
   state_controller.set_current_step_to(0);
   reset_flag_of_current_step();
   reset_spinner_picture();
+  flag_run_trigglermode = false;
+  trigglercountdown = number_of_triggles;
 }
 
 void reset_machine() {
@@ -359,10 +365,15 @@ void nex_zyl_startklemme_push_callback(void *ptr) {
 void nex_zyl_wippenhebel_push_callback(void *ptr) {
   zyl_wippenhebel.toggle();
   nex_state_zyl_wippenhebel = 1;
+
+  timeout_trigglermode.reset_time();
+  timeout_trigglermode.set_flag_activated(1);
 }
 
 void nex_zyl_wippenhebel_pop_callback(void *ptr) { //
   nex_state_zyl_wippenhebel = 0;
+
+  timeout_trigglermode.set_flag_activated(0);
 }
 
 void nex_zyl_spanntaste_push_callback(void *ptr) { zyl_spanntaste.set(1); }
@@ -782,6 +793,14 @@ void update_button_hauptluft() {
   // }
 }
 
+void start_trigglermode() {
+  if (timeout_trigglermode.is_marked_activated()) {
+    if (timeout_trigglermode.has_timed_out()) {
+      flag_run_trigglermode = true;
+    }
+  }
+}
+
 void display_loop_page_1_right_side() {
   update_button_zuluft_800();
   update_button_niederhalter();
@@ -792,6 +811,8 @@ void display_loop_page_1_right_side() {
   update_button_foerdern();
   update_button_schweissen();
   update_button_hauptluft();
+
+  start_trigglermode();
 }
 
 // DIPLAY LOOP PAGE 2: ---------------------------------------------------------
@@ -939,9 +960,7 @@ class Vorschieben : public Cycle_step {
 class Schneiden : public Cycle_step {
   String get_display_text() { return "SCHNEIDEN"; }
 
-  void do_initial_stuff(){
-    zyl_block_klemmrad.set(0);
-  };
+  void do_initial_stuff() { zyl_block_klemmrad.set(0); };
   void do_loop_stuff() {
     zyl_block_messer.stroke(1300, 500);
 
@@ -1177,6 +1196,38 @@ void setup() {
 
 // MAIN LOOPS ******************************************************************
 
+// TRIGGLER MODE ---------------------------------------------------------------
+
+void run_trigglermode() {
+  // static bool triggler_has_started=false;
+
+  // if(!triggler_has_started){
+  // zyl_wippenhebel.set(0);
+
+  // }
+  int min_stroke_time = 400;
+  int max_stroke_time = 1200;
+  int diff_stroke_time = max_stroke_time - min_stroke_time;
+
+  unsigned long default_stroke_time = 600;
+  static unsigned long onstroke_time = default_stroke_time;
+  static unsigned long offstroke_time = default_stroke_time;
+
+  if (zyl_wippenhebel.stroke_completed()) {
+    trigglercountdown--;
+    onstroke_time = random(diff_stroke_time) + min_stroke_time;
+    offstroke_time = random(diff_stroke_time) + min_stroke_time;
+  }
+
+  zyl_wippenhebel.stroke(onstroke_time, offstroke_time);
+  // digitalWrite(CONTROLLINO_R2, zyl_wippenhebel.get_state());
+
+  if (trigglercountdown <= 0) {
+    trigglercountdown = number_of_triggles;
+    flag_run_trigglermode = false;
+  }
+}
+
 // STEP MODE -------------------------------------------------------------------
 void run_step_mode() {
 
@@ -1296,8 +1347,13 @@ void loop() {
   // CONTROL SIGNAL LIGHT:
   // zyl_singal_red.set(state_controller.machine_is_running());
 
+  // RUN MIRCOS TRIGGLERMODE
+  if (flag_run_trigglermode) {
+    run_trigglermode();
+  }
+
   // RUN STEP MODE:
-  if (state_controller.is_in_step_mode()) {
+  else if (state_controller.is_in_step_mode()) {
     state_controller.set_run_after_reset(false);
     run_step_mode();
   }
