@@ -75,7 +75,7 @@ State_controller state_controller;
 // long  (-2,147,483,648 to 2,147,483,647)
 // float (6-7 Digits)
 bool flag_run_trigglermode = false;
-unsigned long number_of_triggles = 1000;
+unsigned long number_of_triggles = 2000;
 static unsigned long trigglercountdown = number_of_triggles;
 
 byte cycle_step = 0;
