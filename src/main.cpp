@@ -1002,6 +1002,20 @@ class Festklemmen : public Cycle_step {
   };
 };
 // -----------------------------------------------------------------------------
+class Wippen : public Cycle_step { // Schritt hinzugefügt um Zuverlässigkeit des Tools zu erhöhen
+  String get_display_text() { return "MIRCO WIPPE"; }
+
+  void do_initial_stuff() { delay_cycle_step.set_unstarted(); };
+  void do_loop_stuff() {
+    zyl_wippenhebel.stroke(1300, 700);
+
+    if (zyl_wippenhebel.stroke_completed()) {
+      set_loop_completed();
+    }
+  }
+};
+
+// -----------------------------------------------------------------------------
 class Spannen : public Cycle_step {
   String get_display_text() { return "SPANNEN"; }
 
@@ -1170,6 +1184,7 @@ void setup() {
   main_cycle_steps.push_back(new Schneiden);
   main_cycle_steps.push_back(new Stirzel);
   main_cycle_steps.push_back(new Festklemmen);
+  main_cycle_steps.push_back(new Wippen);
   main_cycle_steps.push_back(new Spannen);
   main_cycle_steps.push_back(new Pause);
   main_cycle_steps.push_back(new Schweissen);

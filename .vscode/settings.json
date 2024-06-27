@@ -1,3 +1,7 @@
 {
-    "cmake.configureOnOpen": true
+    "cmake.configureOnOpen": true,
+    "files.associations": {
+        "*.ps1": "powershell",
+        "vector": "cpp"
+    }
 }
